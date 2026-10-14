@@ -8,6 +8,9 @@
 #include <mutex>
 #include <condition_variable>
 #include <fcntl.h>
+#include <atomic>
+#include <thread>
+#include <unistd.h>
 
 #include <string>
 #include <iostream>
@@ -21,70 +24,80 @@
 
 namespace download{
 
-  class client{
+  class Worker{
   public:
+    Worker(const Worker&) = delete;
+    Worker& operator=(const Worker&) = delete;
 
-    client(const client&) = delete;
-    client& operator=(const client&) = delete;
+  Worker(std::string url, std::string save_path, int num_thread) : 
+    Worker(parse_url(url), std::move(save_path), num_thread)
+  {}
 
-  /*
-  初始构造
-    filename： 请求的对方服务器的文件
-    addr:     请求的url 或 ip  （均可）
-
-
-    例如 client(index.html, www.baidu.com)  下载百度的主页html文件
-  */
-  client(std::string filename, std::string addr) : download(filename, addr){
-    reset_sign();
+  ~Worker() {
+    downloader.exit();
   }
 
-  /*
-    更换下载的源文件和地址
-    参数同上
-  */
-  int change_download_source(std::string filename, std::string addr){
-    reset_sign();
-    return download.initialize(filename, addr);
+  int run(){
+    std::thread([this](){
+      downloader.run();
+    }).detach();
+
+    return 0;
   }
 
-  /*
-    入口
-    save_as_filename 保存的地址和文件，若文件已存在会直接清空文件
-  */
- coro_task<bool> start_download(std::string save_as_filename){
-  
-    if(download.connect() < 0)  co_return -1;
-    file_fd = open(save_as_filename.c_str(), O_RDWR | O_CREAT | O_TRUNC | O_APPEND, 0666);
-    if(file_fd < 0) co_return -1;
-
-    download.send_request();
-
-    char tmp[4096];
-    while(1){
-      int sz = recv(download.get_server_socket(), tmp, sizeof(tmp), 0);
-      if(sz <= 0) break;
-
-      int sz1 = write(file_fd, tmp, sz);
-      if(sz1 <= 0)  break;
-    }
-
-    download.close();
+  void pause(){
+    downloader.pause();
   }
-  
+
+  void resume(){
+    downloader.resume();
+  }
+
+  void kill_task(){
+    downloader.exit();
+  }
+
+  int is_done(){
+    return downloader.is_done();
+  }
+
+  int change_download_task(std::string url, std::string save_path){
+    
+    downloader.exit();
+
+    auto res = parse_url(url);
+    std::string filename = res.second;
+    std::string addr = res.first;
+    return downloader.initialize(filename, addr, save_path);
+  }
+
   private:
-    download_class download;
+    download_class downloader;
     int file_fd;
 
-    bool read_end;
-    bool write_end;
-    void reset_sign(){
-      read_end = 0;
-      write_end = 0;
-    }
+    int have_download = 0;
+
+    std::mutex mtx;
+    std::condition_variable cv;
 
     std::string buf;
 
+    std::pair<std::string, std::string> parse_url(std::string url){
+      int pos = url.find("://");
+      if (pos == std::string::npos) pos = 0;
+      else  pos += 3;
+
+      int cut = url.find("/", pos);
+
+      if(cut == std::string::npos) return {url.substr(pos), ""};
+      else return {url.substr(pos, cut - pos), url.substr(cut + 1)};
+    }
+
+    Worker(std::pair<std::string, std::string> parse_res, std::string save_path, int num_thread)
+      : downloader(parse_res.second, parse_res.first, save_path)
+    {
+    }
+    
   };
 //==========================class===============
 
