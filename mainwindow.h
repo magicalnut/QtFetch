@@ -1,8 +1,12 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "sqlite/sqlreader.h"
+#include "sqlite/sqlwriter.h"
+
 #include <QMainWindow>
 #include <QString>
+#include <QThread>
 
 class QComboBox;
 class QLabel;
@@ -55,6 +59,13 @@ private:
     // 任务列表
     QTableWidget *m_taskTable = nullptr;  // 右侧：任务表格
     QLabel *m_taskSummary = nullptr;      // 右侧标题栏上的统计信息
+
+    //sql读线程
+    SqlReader *reader;
+    QThread *read_thread;
+    //sql写线程
+    SqlWriter *writer;
+    QThread *write_thread;
 };
 
 #endif // MAINWINDOW_H

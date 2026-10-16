@@ -76,6 +76,14 @@ MainWindow::MainWindow(QWidget *parent)
     setupToolBar();
     setupCentralArea();
 
+    read_thread=new QThread();
+    reader=new SqlReader();
+    reader->moveToThread(read_thread);
+    connect(read_thread,&QThread::started,reader,&SqlReader::init);
+    read_thread->start();
+
+
+
     statusBar()->showMessage(tr("就绪"));
 }
 

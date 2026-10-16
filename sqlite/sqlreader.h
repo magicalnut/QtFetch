@@ -1,0 +1,28 @@
+#ifndef SQLREADER_H
+#define SQLREADER_H
+
+#include "taskrecord.h"
+
+#include <QObject>
+
+class SqlReader : public QObject
+{
+    Q_OBJECT
+public:
+    explicit SqlReader(QObject *parent = nullptr);
+    ~SqlReader()override;
+    void init();
+
+private:
+    QString connerror;
+
+public slots:
+    void readall();
+
+signals:
+    void tasksLoaded(const QList<TaskRecord> &tasks);
+    void errorOccurred(const QString &message);
+    void finished();
+};
+
+#endif // SQLREADER_H
