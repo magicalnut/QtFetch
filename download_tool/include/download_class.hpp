@@ -4,8 +4,10 @@
 #include <sys/socket.h>
 #include <string>
 #include <cstddef>
+#include <atomic>
 
 #include "coro.hpp"
+#include "thread_pool.hpp"
 
 //download(string filename, string addr)
 namespace download { 
@@ -18,8 +20,8 @@ public:
 
   download_class& operator=(const download_class&) = delete;
 
-  download_class(std::string filename, std::string addr, std::string save_as_file) 
-  : addr(addr), file_name(filename), save_as_filename(save_as_file)
+  download_class(std::string filename, std::string host, std::mutex &mtx, std::condition_variable &cv, int file_fd)
+  : host(host), file_name(filename), mtx(mtx), cv(cv), file_fd(file_fd)
   {
   }
 
@@ -32,24 +34,60 @@ public:
     }
   }
 
-  int initialize(std::string filename, std::string addr, std::string save_as_file){
-    close();
-    file_name = filename;
-    this->addr = addr;
-    this->save_as_filename = save_as_file;
-    done_signal = 0;
-    pause_signal = 1;
-    return 0;
-  }
+  // int initialize(std::string filename, std::string addr, std::string save_as_file){
+  //   close();
+  //   file_name = filename;
+  //   this->addr = addr;
+  //   this->save_as_filename = save_as_file;
+  //   done_signal = 0;
+  //   pause_signal = 1;
+  //   return 0;
+  // }
 
-  int run(){
-    if(connect() < 0)  return -1;
-    file_fd = open(save_as_filename.c_str(), O_RDWR | O_CREAT | O_TRUNC | O_APPEND, 0666);
-    if(file_fd < 0) return -1;
+  int run(int start_byte, int end_byte){
+    // connect();
 
-    send_request();
     pause_signal = 0;
+    int offset = start_byte;
+    
+    int server_fd = find_server_socket(host, "80");
+    send_request(start_byte, end_byte, server_fd);
+
+    std::string buf;
     char tmp[4096];
+    
+    while(1){
+      int sz = recv(server_fd, tmp, sizeof(tmp), 0);
+      if(sz <0){
+        throw std::runtime_error("cannot recv");
+        return -1;
+      }
+      else if(sz == 0){
+        break;
+      }
+
+      buf.append(tmp, sz);
+      int pos = buf.find("\r\n\r\n");
+      if(pos != std::string::npos){
+        buf = buf.substr(pos + 4);
+      }
+    }
+
+    while(1){
+      int sz = pwrite(file_fd, buf.data(), buf.size(), offset);
+      if(sz < 0){
+        throw std::runtime_error("cannot write");
+        return -1;
+      }
+      else if(sz == 0){
+        throw std::runtime_error("write 0 bytes");
+        break;
+      }
+      offset += sz;
+      buf = buf.substr(sz);
+      if(buf.empty()) break;
+    }    
+
     while(1){
 
       {
@@ -57,21 +95,41 @@ public:
         cv.wait(lk, [&](){return (!pause_signal || done_signal);});
       }
 
-      int sz = recv(get_server_socket(), tmp, sizeof(tmp), 0);
-      if(sz <= 0) return 0;
+      if(
+        [this]() -> bool {
+          std::lock_guard<std::mutex> lk(mtx);
+          return static_cast<bool> (done_signal);
+        }()
+      ) break;
 
-      int sz1 = write(file_fd, tmp, sz);
-      if(sz1 <= 0)  return -1;
+
+      int sz = recv(server_fd, tmp, sizeof(tmp), 0);
+      if(sz <=0){
+        throw std::runtime_error("cannot recv");
+        return -1;
+      } 
+      else if(sz == 0){
+        break;
+      }
+
+      int sz1 = pwrite(file_fd, tmp, sz, offset);
+      if(sz1 <= 0){
+        throw std::runtime_error("cannot write");
+        return -1;
+      } 
+
+      offset += sz;
     }
 
-    close();
+    ::close(server_fd);
+
     return 0;
   }
   
 
-  int get_server_socket(){ 
-    return server_socket;
-  }
+  // int get_server_socket(){ 
+  //   return server_socket;
+  // }
 
   void pause(){
     pause_signal = 1;
@@ -79,7 +137,7 @@ public:
   
   void resume(){
     pause_signal = 0;
-    cv.notify_one();
+    cv.notify_all();
   }
 
   int is_done(){
@@ -88,25 +146,23 @@ public:
 
   void exit(){
     done_signal = 1;
-    cv.notify_one();
+    cv.notify_all();
   }
   
 
 private:
 
-  std::mutex mtx;
-  std::condition_variable cv;
+  std::mutex& mtx;
+  std::condition_variable& cv;
 
-  int pause_signal = 1;
-  int done_signal = 0;
+  std::atomic<int> pause_signal = 1;
+  std::atomic<int> done_signal = 0;
 
   int server_socket = 0;
   int file_fd = 0;
 
-  std::string save_as_filename;
-
   std::string file_name;
-  std::string addr;
+  std::string host;
 
   int close(){
     if(server_socket){
@@ -116,21 +172,21 @@ private:
     return 0;
   }
 
-  int send_request(){
+  int send_request(int start_byte, int end_byte, int fd){
     std::string mes = "GET /" + file_name + " HTTP/1.1\r\n" +
-                      "Host: " + addr + "\r\n" +
+                      "Host: " + host + "\r\n" +
                       "Connection: close\r\n" +
+                      "Range: bytes=" + std::to_string(start_byte) + "-" + std::to_string(end_byte) + "\r\n" +
                       "\r\n";
-    send_message(server_socket, mes);
+    send_message(fd, mes);
     return 0;
   }
-
-  int connect(){ 
-    server_socket = find_server_socket(addr, "80");
+  int connect(){
+    server_socket = find_server_socket(host, "80");
     if(server_socket < 0){
+      throw std::runtime_error("cannot connect to server");
       return -1;
     }
-
     return 0;
   }
 
@@ -146,6 +202,7 @@ private:
     return 0;
   }
 
+  
   
 
 
