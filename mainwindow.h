@@ -35,6 +35,7 @@ private slots:
     void onPickSaveDir();
     void onTaskToggle(int row);
     void onTaskCancel(int row);
+    void showFatalAndQuit(const QString &why);
 
 private:
     void setupToolBar();

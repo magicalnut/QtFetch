@@ -21,9 +21,10 @@ SqlReader::~SqlReader(){
 void SqlReader::init(){
     if(!setConnection(connName,&connerror)){
         emit errorOccurred(connerror);
-        emit finished();
+        emit initfail();
         return ;
     }
+    emit initsuccess();
 }
 
 void SqlReader::readall(){

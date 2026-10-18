@@ -22,6 +22,8 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QMessageBox>
+#include <QCoreApplication>
 
 namespace {
 
@@ -76,13 +78,27 @@ MainWindow::MainWindow(QWidget *parent)
     setupToolBar();
     setupCentralArea();
 
+    write_thread=new QThread();
+    writer=new SqlWriter();
+    writer->moveToThread(write_thread);
+    connect(writer,&SqlWriter::tablefail,this,[this](int num){
+        showFatalAndQuit(tr("数据库表%1建立失败").arg(num));
+    });
+    connect(writer,&SqlWriter::initfail,this,[this](){
+        showFatalAndQuit(tr("无法打开/创建数据库"));
+    });
+    connect(write_thread,&QThread::started,writer,&SqlWriter::init);
+    connect(writer,&SqlWriter::initsuccess,[this](){
+        statusBar()->showMessage("数据库初始化完成");
+    });
+    write_thread->start();
+
+
     read_thread=new QThread();
     reader=new SqlReader();
     reader->moveToThread(read_thread);
     connect(read_thread,&QThread::started,reader,&SqlReader::init);
     read_thread->start();
-
-
 
     statusBar()->showMessage(tr("就绪"));
 }
@@ -414,4 +430,18 @@ void MainWindow::onTaskCancel(int row)
     m_taskTable->removeRow(row);   // 移除行会连带销毁单元格内的按钮
     m_taskSummary->setText(tr("共 %1 个任务").arg(m_taskTable->rowCount()));
     statusBar()->showMessage(tr("任务 %1 已取消").arg(id), 3000);
+}
+
+void MainWindow::showFatalAndQuit(const QString &why)
+{
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Critical);
+    box.setWindowTitle(tr("数据库初始化失败"));
+    box.setText(why);
+    box.setStandardButtons(QMessageBox::Close);
+    box.setDefaultButton(QMessageBox::Close);
+
+    box.exec();
+
+    QCoreApplication::quit();
 }

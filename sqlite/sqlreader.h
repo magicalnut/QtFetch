@@ -23,6 +23,8 @@ signals:
     void tasksLoaded(const QList<TaskRecord> &tasks);
     void errorOccurred(const QString &message);
     void finished();
+    void initsuccess();
+    void initfail();
 };
 
 #endif // SQLREADER_H
