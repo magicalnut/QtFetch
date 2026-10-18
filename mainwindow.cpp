@@ -24,6 +24,7 @@
 #include <QWidget>
 #include <QMessageBox>
 #include <QCoreApplication>
+#include <QEventLoop>
 
 namespace {
 
@@ -75,9 +76,6 @@ MainWindow::MainWindow(QWidget *parent)
     setWindowTitle(tr("QtFetch 下载器"));
     resize(1120, 700);
 
-    setupToolBar();
-    setupCentralArea();
-
     write_thread=new QThread();
     writer=new SqlWriter();
     writer->moveToThread(write_thread);
@@ -88,17 +86,27 @@ MainWindow::MainWindow(QWidget *parent)
         showFatalAndQuit(tr("无法打开/创建数据库"));
     });
     connect(write_thread,&QThread::started,writer,&SqlWriter::init);
-    connect(writer,&SqlWriter::initsuccess,[this](){
+    connect(writer,&SqlWriter::initsuccess,this,[this](){
         statusBar()->showMessage("数据库初始化完成");
     });
-    write_thread->start();
-
-
     read_thread=new QThread();
     reader=new SqlReader();
     reader->moveToThread(read_thread);
     connect(read_thread,&QThread::started,reader,&SqlReader::init);
-    read_thread->start();
+    QEventLoop loop;
+    connect(reader,&SqlReader::finished,&loop,&QEventLoop::quit);
+
+
+    connect(writer,&SqlWriter::initsuccess,this,[this](){
+        read_thread->start();
+    });
+
+    write_thread->start();
+
+    setupToolBar();
+    setupCentralArea();
+
+    loop.exec();
 
     statusBar()->showMessage(tr("就绪"));
 }
