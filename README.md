@@ -77,3 +77,7 @@ cmake --build build
 ## 许可证
 
 本项目采用 [MIT License](LICENSE)。
+
+## 参与贡献
+
+欢迎参与本项目，详情请见 [贡献指南](CONTRIBUTING.md)。
