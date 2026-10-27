@@ -43,87 +43,54 @@ public:
   // }
 
   int run(int start_byte, int end_byte){
-    // connect();
+      pause_signal = 0;
+      int offset = start_byte;
 
-    pause_signal = 0;
-    int offset = start_byte;
-    
-    int server_fd = find_server_socket(host, "80");
-    send_request(start_byte, end_byte, server_fd);
+      int server_fd = find_server_socket(host, "80");
+      send_request(start_byte, end_byte, server_fd);
 
-    std::string buf;
-    char tmp[4096];
-    
-    while(1){       //流处理头
-      int sz = recv(server_fd, tmp, sizeof(tmp), 0);
-      if(sz <0){
-        throw std::runtime_error("cannot recv");
-        return -1;
-      }
-      else if(sz == 0){
-        break;
-      }
+      std::string buf;
+      char tmp[4096];
+      bool header_done = false;
 
-      buf.append(tmp, sz);
-      int pos = buf.find("\r\n\r\n");
-      if(pos != std::string::npos){
-        buf = buf.substr(pos + 4);
-      }
-    }
+      while(1){
+          // 暂停 / 取消检查（放在 recv 之前，这样暂停才真的生效）
+          {
+              std::unique_lock<std::mutex> lk(mtx);
+              cv.wait(lk, [&](){ return !pause_signal || done_signal; });
+          }
+          if(done_signal) break;
 
-    while(1){
-      int sz = pwrite_at(file_fd, buf.data(), buf.size(), offset);
-      if(sz < 0){
-        throw std::runtime_error("cannot write");
-        return -1;
-      }
-      else if(sz == 0){
-        throw std::runtime_error("write 0 bytes");
-        break;
-      }
-      offset += sz;
-      download_history += sz;
-      buf = buf.substr(sz);
-      if(buf.empty()) break;
-    }               //流处理头
+          int sz = recv(server_fd, tmp, sizeof(tmp), 0);
+          if(sz < 0){
+              close_socket(server_fd);
+              throw std::runtime_error("cannot recv");
+          }
+          if(sz == 0) break;              // 连接正常关闭
 
-    while(1){
+          buf.append(tmp, sz);
 
-      {
-        std::unique_lock<std::mutex> lk(mtx);
-        cv.wait(lk, [&](){return (!pause_signal || done_signal);});
+          if(!header_done){
+              int pos = buf.find("\r\n\r\n");
+              if(pos == std::string::npos) continue;   // 头还没收全
+              buf = buf.substr(pos + 4);
+              header_done = true;
+          }
+
+          while(!buf.empty()){
+              int n = pwrite_at(file_fd, buf.data(), buf.size(), offset);
+              if(n <= 0){
+                  close_socket(server_fd);
+                  throw std::runtime_error("cannot write");
+              }
+              offset += n;
+              download_history += n;
+              buf.erase(0, n);            // 只删已写出的部分，正确处理部分写
+          }
       }
 
-      if(
-        [this]() -> bool {
-          std::lock_guard<std::mutex> lk(mtx);
-          return static_cast<bool> (done_signal);
-        }()
-      ) break;
-
-
-      int sz = recv(server_fd, tmp, sizeof(tmp), 0);    //读
-      if(sz <=0){
-        throw std::runtime_error("cannot recv");
-        return -1;
-      } 
-      else if(sz == 0){
-        break;
-      }
-
-      int sz1 = pwrite_at(file_fd, tmp, sz, offset);      //写
-      if(sz1 <= 0){
-        throw std::runtime_error("cannot write");
-        return -1;
-      } 
-
-      offset += sz;
-      download_history += sz;
-    }
-
-    close_socket(server_fd);
-
-    return 0;
+      close_socket(server_fd);
+      return 0;
   }
   
   void pause(){
