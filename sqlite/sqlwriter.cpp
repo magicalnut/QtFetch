@@ -87,7 +87,6 @@ void SqlWriter::addTask(const QString &url, const QString &savePath, int threads
         return;
     }
 
-    // 必须在同一次 exec 之后立刻取，中间不能插别的 INSERT
     const qint64 id = q.lastInsertId().toLongLong();
     emit taskCreated(id, url);
 }

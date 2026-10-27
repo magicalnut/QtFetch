@@ -109,6 +109,16 @@ MainWindow::MainWindow(QWidget *parent)
         read_thread->start();
     });
 
+    connect(this,&MainWindow::taskInsertRequested,writer,&SqlWriter::addTask);
+
+    connect(writer,&SqlWriter::taskCreated,this,[this](qint64 id,const QString &url){
+        appendTaskRow(id,url);
+        statusBar()->showMessage(tr("任务 %1 已创建").arg(id),3000);
+    });
+    connect(writer,&SqlWriter::taskInsertFailed,this,[this](const QString &msg){
+        statusBar()->showMessage(tr("创建任务失败：%1").arg(msg),5000);
+    });
+
     write_thread->start();
 
     setupToolBar();
@@ -415,10 +425,10 @@ void MainWindow::onStartDownload()
         return;
     }
 
-    appendTaskRow(0,url);
-    statusBar()->showMessage(
-        tr("已加入任务：%1 → %2（%3 线程）")
-            .arg(url, dir + QLatin1Char('/') + fileName).arg(threads), 5000);
+    const QString savePath = fileName.isEmpty() ? dir : QDir(dir).filePath(fileName);
+
+    emit taskInsertRequested(url, savePath, threads);
+    statusBar()->showMessage(tr("正在创建任务…"), 3000);
     m_urlEdit->clear();
     m_fileNameEdit->clear();
 }

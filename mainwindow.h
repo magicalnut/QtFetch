@@ -23,6 +23,9 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
+signals:
+    void taskInsertRequested(const QString &url, const QString &savePath, int threads);
+
 private slots:
     // 导航栏
     void onStartAll();
