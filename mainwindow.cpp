@@ -25,6 +25,8 @@
 #include <QMessageBox>
 #include <QCoreApplication>
 #include <QEventLoop>
+#include <QTimer>
+#include <QDebug>
 
 namespace {
 
@@ -93,8 +95,17 @@ MainWindow::MainWindow(QWidget *parent)
     reader=new SqlReader();
     reader->moveToThread(read_thread);
     connect(read_thread,&QThread::started,reader,&SqlReader::init);
+    connect(reader,&SqlReader::initsuccess,reader,&SqlReader::readall);
     QEventLoop loop;
     connect(reader,&SqlReader::finished,&loop,&QEventLoop::quit);
+    connect(reader,&SqlReader::initfail,&loop,&QEventLoop::quit);
+    connect(reader,&SqlReader::errorOccurred,this,[](const QString &e){
+        qWarning() << "SqlReader:" << e;
+    });
+    // 临时：验证读回多少条，阶段 1 删
+    connect(reader,&SqlReader::tasksLoaded,this,[](const QList<TaskRecord> &tasks){
+        qDebug() << "读回任务数:" << tasks.size();
+    });
 
 
     connect(writer,&SqlWriter::initsuccess,this,[this](){
@@ -106,6 +117,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupToolBar();
     setupCentralArea();
 
+    QTimer::singleShot(5000,&loop,&QEventLoop::quit);
     loop.exec();
 
     statusBar()->showMessage(tr("就绪"));
