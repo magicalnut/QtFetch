@@ -67,10 +67,11 @@ QtFetch/
 ## 环境要求
 
 - CMake ≥ 3.20
-- Qt 6.5 及以上（**Core、Widgets、Sql** 三个模块）
+- Qt 6.4 及以上（**Core、Widgets、Sql** 三个模块）
 - 主程序使用 C++17，引擎使用 C++20
-- 已验证组合：Windows 10/11 + MSVC 2022 + Qt 6.5.3（msvc2019_64）
-- 引擎已做 Windows 适配（`platform.hpp`），但 **Linux 上的构建尚未实测**
+- 已验证组合：
+  - Windows 10/11 + MSVC 2022 + Qt 6.5.3（msvc2019_64）
+  - Ubuntu 24.04 + GCC + Qt 6.4.2（系统包）
 
 ## 构建与运行
 
@@ -126,6 +127,60 @@ cmake --build build/download_tests
 ```bash
 cmake -S . -B build -DDOWNLOAD_TOOL_BUILD_TESTS=ON
 ```
+
+## 发布包使用说明
+
+如果你拿到的是打包好的可执行程序（不需要自己编译），按下面两个小节操作。两个包都已内置 Qt 运行库和 SQLite 驱动插件，**目标机器不需要安装 Qt**。
+
+### Windows
+
+发布包：`QtFetch-windows-x64.zip`，或自解压版 `QtFetch-windows-x64-*.exe`
+
+1. 解压 zip（或双击自解压版，选一个目录让它解压）
+2. 双击目录里的 `QtFetch.exe`
+3. 首次运行会自动创建数据库，位置在：
+   ```
+   C:\Users\<你的用户名>\AppData\Roaming\QtFetch\qtfetch.db
+   ```
+
+**注意**
+
+- 如果 Windows Defender / 杀软提示「未知发布者」，选「仍要运行」即可（程序没有代码签名）。
+- 系统要求：Windows 10 及以上（64 位）。
+
+### Linux
+
+发布包：`QtFetch-linux-x86_64.tar.gz`
+
+```bash
+tar -xzf QtFetch-linux-x86_64.tar.gz -C ~/QtFetch
+cd ~/QtFetch/bin
+./QtFetch
+```
+
+目录结构如下，**整个目录一起保留**：
+
+```
+bin/QtFetch          主程序（RPATH 已设为 $ORIGIN/../lib）
+bin/qt.conf          告诉 Qt 插件目录在 ../plugins
+lib/                 内置的 Qt 与 ICU 库
+plugins/platforms/   libqxcb.so
+plugins/sqldrivers/  libqsqlite.so
+```
+
+**注意**
+
+- **系统要求**：Ubuntu 24.04 及以上（包内 Qt 由 glibc 2.39 环境编译，更老的发行版会报 `GLIBC_2.39 not found`）。
+- **中文字体**：包里不含字体。系统缺少中文字体时界面会显示方框，安装即可：
+  ```bash
+  sudo apt install fonts-noto-cjk      # 或 fonts-wqy-microhei
+  ```
+- **桌面运行库**：`libqxcb.so` 依赖 `libxcb-cursor0`、`libxkbcommon-x11-0`、`libfontconfig1`、`libgl1`。桌面版 Ubuntu 默认都有；精简系统/容器里需要手动装。
+- 不要用 `root` 运行图形程序，否则会出现 `XDG_RUNTIME_DIR ... not owned by UID 0` 的告警。用普通用户运行，数据库在：
+  ```
+  ~/.local/share/QtFetch/qtfetch.db
+  ```
+- 没有点击启动图标，需要从终端运行（或自己建一个 `.desktop` 文件）。
 
 ## 使用说明
 
