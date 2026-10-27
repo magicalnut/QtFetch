@@ -15,6 +15,7 @@ qt_add_executable(QtFetch
     sqlite/sqlreader.h sqlite/sqlreader.cpp
     sqlite/taskrecord.h
     sqlite/sqlcommon.h
+    downloadsession.h downloadsession.cpp
 )
 
 target_link_libraries(QtFetch

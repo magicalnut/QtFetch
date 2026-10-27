@@ -61,7 +61,7 @@ namespace download {
 
     void add_timer(std::chrono::milliseconds timeout, std::function<void()> callback){
       int cnt = (timeout + tick - std::chrono::milliseconds(1)) / tick;
-      cnt = std::max(1, cnt);
+        cnt = (std::max)(1, cnt);
 
       if(cnt >= slot_num)
         throw std::runtime_error("timeout too long");
@@ -76,7 +76,7 @@ namespace download {
     void add_always_timer(std::chrono::milliseconds timeout, std::function<void()> callback){
 
       int cnt = (timeout + tick - std::chrono::milliseconds(1)) / tick;
-      cnt = std::max(1, cnt);
+        cnt = (std::max)(1, cnt);
 
       if(cnt >= slot_num)
         throw std::runtime_error("timeout too long");

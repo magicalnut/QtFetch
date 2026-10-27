@@ -3,6 +3,7 @@
 
 #include "sqlite/sqlreader.h"
 #include "sqlite/sqlwriter.h"
+#include "downloadsession.h"
 
 #include <QMainWindow>
 #include <QString>
@@ -42,6 +43,9 @@ private slots:
     void onTasksLoaded(const QList<TaskRecord> &tasks);
 
 private:
+    int rowOfTaskId(qint64 id) const;
+    QHash<qint64, DownloadSession*> m_sessions;
+
     void setupToolBar();
     void setupCentralArea();
     QWidget *createParamPanel();

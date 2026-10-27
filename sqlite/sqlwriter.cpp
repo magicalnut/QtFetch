@@ -88,5 +88,5 @@ void SqlWriter::addTask(const QString &url, const QString &savePath, int threads
     }
 
     const qint64 id = q.lastInsertId().toLongLong();
-    emit taskCreated(id, url);
+    emit taskCreated(id, url, savePath, threads);
 }

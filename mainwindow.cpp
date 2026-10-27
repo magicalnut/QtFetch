@@ -111,9 +111,34 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(this,&MainWindow::taskInsertRequested,writer,&SqlWriter::addTask);
 
-    connect(writer,&SqlWriter::taskCreated,this,[this](qint64 id,const QString &url){
+    connect(writer,&SqlWriter::taskCreated,this,[this](qint64 id,const QString &url,const QString &savePath,int threads){
         appendTaskRow(id,url);
         statusBar()->showMessage(tr("任务 %1 已创建").arg(id),3000);
+
+        auto *session = new DownloadSession(this);
+        connect(session,&DownloadSession::progressChanged,this,
+                [this](qint64 tid,int percent){
+                    const int row = rowOfTaskId(tid);
+                    if(row < 0) return;
+                    auto *bar = qobject_cast<QProgressBar*>(m_taskTable->cellWidget(row,ColProgress));
+                    if(bar) bar->setValue(percent);
+                });
+        connect(session,&DownloadSession::finished,this,
+                [this](qint64 tid,bool ok){
+                    const int row = rowOfTaskId(tid);
+                    if(row >= 0 && ok){
+                        auto *bar = qobject_cast<QProgressBar*>(m_taskTable->cellWidget(row,ColProgress));
+                        if(bar) bar->setValue(100);
+                    }
+                    statusBar()->showMessage(ok ? tr("任务 %1 下载完成").arg(tid)
+                                                : tr("任务 %1 下载失败").arg(tid), 5000);
+
+                    if (auto *s = m_sessions.take(tid))
+                        s->deleteLater();       // 销毁 session
+                });
+
+        m_sessions.insert(id,session);
+        session->start(id,url,savePath,threads);
     });
     connect(writer,&SqlWriter::taskInsertFailed,this,[this](const QString &msg){
         statusBar()->showMessage(tr("创建任务失败：%1").arg(msg),5000);
@@ -375,6 +400,15 @@ void MainWindow::appendTaskRow(qint64 id,const QString &url)
     m_taskSummary->setText(tr("共 %1 个任务").arg(m_taskTable->rowCount()));
 }
 
+int MainWindow::rowOfTaskId(qint64 id) const
+{
+    for (int r = 0; r < m_taskTable->rowCount(); ++r) {
+        const QTableWidgetItem *item = m_taskTable->item(r, ColId);
+        if (item && item->text().toLongLong() == id) return r;
+    }
+    return -1;
+}
+
 void MainWindow::onTasksLoaded(const QList<TaskRecord> &tasks)
 {
     for (const TaskRecord &r : tasks)
@@ -425,7 +459,20 @@ void MainWindow::onStartDownload()
         return;
     }
 
-    const QString savePath = fileName.isEmpty() ? dir : QDir(dir).filePath(fileName);
+    // 目录不存在就建
+    if (!QDir().mkpath(dir)) {
+        statusBar()->showMessage(tr("保存目录不可用：%1").arg(dir), 5000);
+        return;
+    }
+
+    // 文件保存名留空 → 从链接里取最后一段
+    QString name = fileName;
+    if (name.isEmpty()) {
+        name = QUrl(url).fileName();
+        if (name.isEmpty())
+            name = QStringLiteral("download.bin");   // 链接以 / 结尾时兜底
+    }
+    const QString savePath = QDir(dir).filePath(name);
 
     emit taskInsertRequested(url, savePath, threads);
     statusBar()->showMessage(tr("正在创建任务…"), 3000);

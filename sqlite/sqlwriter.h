@@ -25,7 +25,7 @@ signals:
     void initsuccess();
     void initfail();
     void tablefail(int num);
-    void taskCreated(qint64 id, const QString &url);
+    void taskCreated(qint64 id, const QString &url, const QString &savePath, int threads);
     void taskInsertFailed(const QString &message);
 };
 

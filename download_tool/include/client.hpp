@@ -91,7 +91,7 @@ namespace download{
 
       for(int i = 0; i < num_thread; i++){
         int start_byte = i * block_size;
-        int end_byte = std::min(start_byte + block_size, content_size) - 1;
+          int end_byte = (std::min)(start_byte + block_size, content_size) - 1;
         work_threads.submit_task(
           [this, start_byte, end_byte](){
             downloader.run(start_byte, end_byte);
