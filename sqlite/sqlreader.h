@@ -3,14 +3,16 @@
 
 #include "taskrecord.h"
 
+#include <QList>
 #include <QObject>
+#include <QString>
 
 class SqlReader : public QObject
 {
     Q_OBJECT
 public:
     explicit SqlReader(QObject *parent = nullptr);
-    ~SqlReader()override;
+    ~SqlReader() override;
     void init();
 
 private:
@@ -21,6 +23,7 @@ public slots:
 
 signals:
     void tasksLoaded(const QList<TaskRecord> &tasks);
+    void completedLoaded(const QList<TaskRecord> &rows);
     void errorOccurred(const QString &message);
     void finished();
     void initsuccess();
