@@ -111,6 +111,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(this,&MainWindow::taskInsertRequested,writer,&SqlWriter::addTask);
 
+    connect(this,&MainWindow::stateUpdateRequested,writer,&SqlWriter::updateState);
+    connect(this,&MainWindow::taskRemoveRequested,writer,&SqlWriter::removeTask);
+
     connect(writer,&SqlWriter::taskCreated,this,[this](qint64 id,const QString &url,const QString &savePath,int threads){
         appendTaskRow(id,url);
         statusBar()->showMessage(tr("任务 %1 已创建").arg(id),3000);
@@ -118,24 +121,32 @@ MainWindow::MainWindow(QWidget *parent)
         auto *session = new DownloadSession(this);
         connect(session,&DownloadSession::progressChanged,this,
                 [this](qint64 tid,int percent){
-                    const int row = rowOfTaskId(tid);
-                    if(row < 0) return;
-                    auto *bar = qobject_cast<QProgressBar*>(m_taskTable->cellWidget(row,ColProgress));
-                    if(bar) bar->setValue(percent);
-                });
-        connect(session,&DownloadSession::finished,this,
-                [this](qint64 tid,bool ok){
-                    const int row = rowOfTaskId(tid);
-                    if(row >= 0 && ok){
-                        auto *bar = qobject_cast<QProgressBar*>(m_taskTable->cellWidget(row,ColProgress));
-                        if(bar) bar->setValue(100);
-                    }
-                    statusBar()->showMessage(ok ? tr("任务 %1 下载完成").arg(tid)
-                                                : tr("任务 %1 下载失败").arg(tid), 5000);
+            const int row = rowOfTaskId(tid);
+            if(row < 0) return;
+            auto *bar = qobject_cast<QProgressBar*>(m_taskTable->cellWidget(row,ColProgress));
+            if(bar) bar->setValue(percent);
+        });
+        connect(session,&DownloadSession::finished,this,[this](qint64 tid,bool ok){
+            const int row = rowOfTaskId(tid);
+            if (row >= 0 && ok) {
+                auto *bar = qobject_cast<QProgressBar*>(m_taskTable->cellWidget(row,ColProgress));
+                if (bar) bar->setValue(100);
 
-                    if (auto *s = m_sessions.take(tid))
+                auto *btn = qobject_cast<QPushButton*>(m_taskTable->cellWidget(row,ColControl));
+                if (btn) { btn->setText(tr("已完成")); btn->setEnabled(false); }
+            }
+            statusBar()->showMessage(ok ? tr("任务 %1 下载完成").arg(tid)
+                                        : tr("任务 %1 下载失败").arg(tid), 5000);
+
+            if (ok) {
+                emit taskRemoveRequested(tid);
+            } else {
+                emit stateUpdateRequested(tid, QStringLiteral("failed"));
+                    }
+
+            if (auto *s = m_sessions.take(tid))
                         s->deleteLater();       // 销毁 session
-                });
+        });
 
         m_sessions.insert(id,session);
         session->start(id,url,savePath,threads);
@@ -495,23 +506,44 @@ void MainWindow::onTaskToggle(int row)
     if (!button)
         return;
 
-    const bool nowPaused = (button->text() == tr("暂停"));
-    button->setText(nowPaused ? tr("继续") : tr("暂停"));
-
     const QTableWidgetItem *idItem = m_taskTable->item(row, ColId);
-    const QString id = idItem ? idItem->text() : QString::number(row + 1);
-    statusBar()->showMessage(nowPaused ? tr("任务 %1 已暂停").arg(id)
-                                       : tr("任务 %1 已继续").arg(id), 3000);
+    if (!idItem) return;
+    const qint64 id = idItem->text().toLongLong();
+
+    const bool pausing = (button->text() == tr("暂停"));
+
+    if (auto *s = m_sessions.value(id)) {
+        if (pausing) s->pause();
+        else         s->resume();
+    }
+
+    button->setText(pausing ? tr("继续") : tr("暂停"));
+    emit stateUpdateRequested(id, pausing ? QStringLiteral("paused")
+                                          : QStringLiteral("downloading"));
+
+    statusBar()->showMessage(pausing ? tr("任务 %1 已暂停").arg(id)
+                                     : tr("任务 %1 已继续").arg(id), 3000);
 }
 
 void MainWindow::onTaskCancel(int row)
 {
     const QTableWidgetItem *idItem = m_taskTable->item(row, ColId);
-    const QString id = idItem ? idItem->text() : QString::number(row + 1);
+    if (!idItem) return;
+    const qint64 id = idItem->text().toLongLong();
 
-    m_taskTable->removeRow(row);   // 移除行会连带销毁单元格内的按钮
-    m_taskSummary->setText(tr("共 %1 个任务").arg(m_taskTable->rowCount()));
-    statusBar()->showMessage(tr("任务 %1 已取消").arg(id), 3000);
+    if (auto *s = m_sessions.take(id)) {      // take：同时从 map 里移除
+        s->stop();                            // 释放文件句柄
+        s->deleteLater();
+    }
+
+    emit taskRemoveRequested(id);
+
+    // 不能在这里直接 removeRow
+    QMetaObject::invokeMethod(this, [this, row, id]() {
+        m_taskTable->removeRow(row);
+        m_taskSummary->setText(tr("共 %1 个任务").arg(m_taskTable->rowCount()));
+        statusBar()->showMessage(tr("任务 %1 已取消").arg(id), 3000);
+    }, Qt::QueuedConnection);
 }
 
 void MainWindow::showFatalAndQuit(const QString &why)

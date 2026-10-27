@@ -90,3 +90,32 @@ void SqlWriter::addTask(const QString &url, const QString &savePath, int threads
     const qint64 id = q.lastInsertId().toLongLong();
     emit taskCreated(id, url, savePath, threads);
 }
+
+void SqlWriter::updateState(qint64 id, const QString &state)
+{
+    QSqlDatabase db=getConnection(connName);
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral("UPDATE tasks SET state=:state WHERE id=:id"));
+    q.bindValue(QStringLiteral(":state"), state);
+    q.bindValue(QStringLiteral(":id"),    id);
+
+    if(!q.exec()){
+        emit errorOccurred(q.lastError().text());
+        return;
+    }
+    emit stateUpdated(id, state);
+}
+
+void SqlWriter::removeTask(qint64 id)
+{
+    QSqlDatabase db=getConnection(connName);
+    QSqlQuery q(db);
+    q.prepare(QStringLiteral("DELETE FROM tasks WHERE id=:id"));
+    q.bindValue(QStringLiteral(":id"), id);
+
+    if(!q.exec()){
+        emit errorOccurred(q.lastError().text());
+        return;
+    }
+    emit taskRemoved(id);       // segments 靠 ON DELETE CASCADE 自动清
+}

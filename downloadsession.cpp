@@ -3,6 +3,7 @@
 
 #include <QDebug>
 #include <exception>
+#include <thread>
 
 DownloadSession::DownloadSession(QObject *parent)
     : QObject(parent)
@@ -54,5 +55,17 @@ void DownloadSession::poll()
 void DownloadSession::stop()
 {
     m_timer->stop();
-    m_worker.reset();
+    if (!m_worker) return;
+    auto *w = m_worker.release();
+    std::thread([w]() { delete w; }).detach();
+}
+
+void DownloadSession::pause()
+{
+    if (m_worker) m_worker->pause();
+}
+
+void DownloadSession::resume()
+{
+    if (m_worker) m_worker->resume();
 }

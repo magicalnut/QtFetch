@@ -18,6 +18,9 @@ public:
     void start(qint64 taskId, const QString &url, const QString &savePath, int threads);
     void stop();
 
+    void pause();
+    void resume();
+
 signals:
     void progressChanged(qint64 taskId, int percent);
     void finished(qint64 taskId, bool ok);

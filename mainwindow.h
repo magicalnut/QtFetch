@@ -26,6 +26,8 @@ public:
 
 signals:
     void taskInsertRequested(const QString &url, const QString &savePath, int threads);
+    void stateUpdateRequested(qint64 id, const QString &state);
+    void taskRemoveRequested(qint64 id);
 
 private slots:
     // 导航栏

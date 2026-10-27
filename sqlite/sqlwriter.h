@@ -17,6 +17,8 @@ private:
 
 public slots:
     void addTask(const QString &url, const QString &savePath, int threads);
+    void updateState(qint64 id, const QString &state);
+    void removeTask(qint64 id);
 
 signals:
     void tasksLoaded(const QList<TaskRecord> &tasks);
@@ -27,6 +29,8 @@ signals:
     void tablefail(int num);
     void taskCreated(qint64 id, const QString &url, const QString &savePath, int threads);
     void taskInsertFailed(const QString &message);
+    void stateUpdated(qint64 id, const QString &state);
+    void taskRemoved(qint64 id);
 };
 
 #endif // SQLWRITER_H
