@@ -102,10 +102,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(reader,&SqlReader::errorOccurred,this,[](const QString &e){
         qWarning() << "SqlReader:" << e;
     });
-    // 临时：验证读回多少条，阶段 1 删
-    connect(reader,&SqlReader::tasksLoaded,this,[](const QList<TaskRecord> &tasks){
-        qDebug() << "读回任务数:" << tasks.size();
-    });
+    connect(reader,&SqlReader::tasksLoaded,this,&MainWindow::onTasksLoaded);
 
 
     connect(writer,&SqlWriter::initsuccess,this,[this](){
@@ -317,12 +314,12 @@ QWidget *MainWindow::createTaskPanel()
 
 // -------------------------------------------------------- 列表/表格更新 ----
 
-void MainWindow::appendTaskRow(const QString &url)
+void MainWindow::appendTaskRow(qint64 id,const QString &url)
 {
     const int row = m_taskTable->rowCount();
     m_taskTable->insertRow(row);
 
-    auto *idItem = new QTableWidgetItem(QString::number(row + 1));
+    auto *idItem = new QTableWidgetItem(QString::number(id));
     idItem->setTextAlignment(Qt::AlignCenter);
     m_taskTable->setItem(row, ColId, idItem);
 
@@ -368,6 +365,14 @@ void MainWindow::appendTaskRow(const QString &url)
     m_taskSummary->setText(tr("共 %1 个任务").arg(m_taskTable->rowCount()));
 }
 
+void MainWindow::onTasksLoaded(const QList<TaskRecord> &tasks)
+{
+    for (const TaskRecord &r : tasks)
+        appendTaskRow(r.id, r.url);
+
+    statusBar()->showMessage(tr("已载入 %1 个任务").arg(tasks.size()));
+}
+
 // -------------------------------------------------------------- 导航栏槽 ----
 
 void MainWindow::onStartAll()
@@ -410,7 +415,7 @@ void MainWindow::onStartDownload()
         return;
     }
 
-    appendTaskRow(url);
+    appendTaskRow(0,url);
     statusBar()->showMessage(
         tr("已加入任务：%1 → %2（%3 线程）")
             .arg(url, dir + QLatin1Char('/') + fileName).arg(threads), 5000);

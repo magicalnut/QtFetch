@@ -2,6 +2,8 @@
 #include "sqlcommon.h"
 
 #include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QSqlError>
 
 using namespace Sqlcommon;
 namespace{
@@ -66,4 +68,26 @@ void SqlWriter::init(){
     }
 
     emit initsuccess();
+}
+
+void SqlWriter::addTask(const QString &url, const QString &savePath, int threads)
+{
+    QSqlDatabase db=getConnection(connName);
+    QSqlQuery q(db);
+
+    q.prepare(QStringLiteral(
+        "INSERT INTO tasks (url, save_path, thread_count, state) "
+        "VALUES (:url, :path, :threads, 'waiting')"));
+    q.bindValue(QStringLiteral(":url"),     url);
+    q.bindValue(QStringLiteral(":path"),    savePath);
+    q.bindValue(QStringLiteral(":threads"), threads);
+
+    if(!q.exec()){
+        emit taskInsertFailed(q.lastError().text());
+        return;
+    }
+
+    // 必须在同一次 exec 之后立刻取，中间不能插别的 INSERT
+    const qint64 id = q.lastInsertId().toLongLong();
+    emit taskCreated(id, url);
 }

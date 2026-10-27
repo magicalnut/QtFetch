@@ -36,6 +36,7 @@ private slots:
     void onTaskToggle(int row);
     void onTaskCancel(int row);
     void showFatalAndQuit(const QString &why);
+    void onTasksLoaded(const QList<TaskRecord> &tasks);
 
 private:
     void setupToolBar();
@@ -44,7 +45,7 @@ private:
     QWidget *createTaskPanel();
 
     // 往任务列表追加一行（骨架，后续接真实下载逻辑）
-    void appendTaskRow(const QString &url);
+    void appendTaskRow(qint64 id, const QString &url);
 
     // 参数区
     QLineEdit *m_urlEdit = nullptr;
