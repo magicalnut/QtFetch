@@ -74,8 +74,21 @@ QtFetch/
 
 ## 构建与运行
 
+### 1. 获取代码
+
 ```bash
-# 配置（把 CMAKE_PREFIX_PATH 指向你的 Qt 安装）
+git clone https://github.com/magicalnut/QtFetch.git
+cd QtFetch
+```
+
+下载引擎 `download_tool` 就在主仓库目录里，**不是 submodule**，不需要单独 clone。
+
+### 2. 构建
+
+Linux / macOS：
+
+```bash
+# 配置（CMAKE_PREFIX_PATH 指向你的 Qt 安装目录）
 cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/Qt/6.5.3/gcc_64
 
 # 编译
@@ -85,13 +98,19 @@ cmake --build build --config Release
 ./build/QtFetch
 ```
 
-Windows + MSVC 下用 Visual Studio 生成器：
+Windows + MSVC：
 
 ```powershell
+# 这里的 Qt 路径换成你自己的安装位置（Qt 安装器默认在 C:/Qt/<版本>/）
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
-      -DCMAKE_PREFIX_PATH=/path/to/Qt/6.5.3/msvc2019_64
+      -DCMAKE_PREFIX_PATH=C:/Qt/6.5.3/msvc2019_64
+
 cmake --build build --config Release
+
+.\build\Release\QtFetch.exe
 ```
+
+> 用 Qt Creator 打开更省事：直接选 `CMakeLists.txt`，配置好 Kit 后会自动识别 Qt 路径，不需要手写 `CMAKE_PREFIX_PATH`。
 
 ### 引擎测试
 
