@@ -9,6 +9,8 @@
 #include <chrono>
 
 #include <functional>
+#include <algorithm>
+#include <stdexcept>
 
 namespace download { 
 

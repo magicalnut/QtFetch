@@ -192,7 +192,7 @@ private:
   inline int send_message(int server_socket, std::string mes){
     size_t sent = 0;
     while (sent < mes.size()){
-      ssize_t n = send(server_socket, mes.c_str() + sent, mes.size() - sent, 0);
+      int n = send(server_socket, mes.c_str() + sent, mes.size() - sent, 0);
       if (n < 0) return -1;
       sent += n;
     }

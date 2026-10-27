@@ -4,6 +4,7 @@ project(QtFetch LANGUAGES CXX)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Sql)
 
 qt_standard_project_setup()
+add_subdirectory(download_tool)
 
 qt_add_executable(QtFetch
     WIN32 MACOSX_BUNDLE
@@ -21,7 +22,10 @@ target_link_libraries(QtFetch
         Qt::Core
         Qt::Widgets
         Qt6::Sql
+        download_class
 )
+
+target_include_directories(QtFetch PRIVATE download_tool/include)
 
 install(TARGETS QtFetch
     BUNDLE  DESTINATION .

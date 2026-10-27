@@ -5,7 +5,6 @@
   #include <ws2tcpip.h>
   #include <io.h>
   #include <fcntl.h>
-  #include <unistd.h>
   #include <sys/types.h>
   #include <stdio.h>
   #include <mutex>
@@ -30,7 +29,7 @@
 
     // MinGW 没有 pwrite；多线程共享同一个文件 fd，
     // 必须加锁保证 lseek + write 的原子性，避免分块写互相踩偏移量
-    inline ssize_t pwrite_at(int fd, const void* buf, size_t n, long long offset){
+    inline int pwrite_at(int fd, const void* buf, size_t n, long long offset){
       static std::mutex mtx;
       std::lock_guard<std::mutex> lock(mtx);
       if (_lseeki64(fd, offset, SEEK_SET) < 0) return -1;
