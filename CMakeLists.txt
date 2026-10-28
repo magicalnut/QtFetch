@@ -57,9 +57,17 @@ install(TARGETS QtFetch
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
-qt_generate_deploy_app_script(
-    TARGET QtFetch
-    FILENAME_VARIABLE deploy_script
-    NO_UNSUPPORTED_PLATFORM_ERROR
-)
+if(Qt6_VERSION VERSION_LESS 6.8)
+    qt_generate_deploy_app_script(
+        TARGET QtFetch
+        FILENAME_VARIABLE deploy_script
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+else()
+    qt_generate_deploy_app_script(
+        TARGET QtFetch
+        OUTPUT_SCRIPT deploy_script
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+endif()
 install(SCRIPT ${deploy_script})
