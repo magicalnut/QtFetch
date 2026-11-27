@@ -9,8 +9,6 @@
 #include <chrono>
 
 #include <functional>
-#include <algorithm>
-#include <stdexcept>
 
 namespace download { 
 
@@ -20,80 +18,30 @@ namespace download {
     Timer_Wheel& operator=(const Timer_Wheel&) = delete;
     Timer_Wheel(const Timer_Wheel&) = delete;
 
-    Timer_Wheel(int slot_num, std::chrono::milliseconds tick)
-      : slot_num(slot_num), tick(tick), wheel(slot_num)
-    {
+    Timer_Wheel(int slot_num, std::chrono::milliseconds tick);
 
-      start();
-    }
+    ~Timer_Wheel();
 
-    ~Timer_Wheel(){
-      stop();
-    }
+    void stop();
 
-    void stop(){
-      if(stop_flag) return;
-
-      {
-        std::unique_lock<std::mutex> lock(mtx);
-        stop_flag = 1;
-         for (auto& slot : wheel) slot.clear();
-      }
-
-      cv.notify_all();
-      
-      if (timer_thread.get_id() != std::this_thread::get_id()) {
-        timer_thread.join();
-      } else {
-        timer_thread.detach();
-      }
-    }
-
-    void start(){
-      std::lock_guard<std::mutex> lock(mtx);
-      stop_flag = 0;
-      cv.notify_all();
-
-      timer_thread = std::thread([this](){ 
-        timer_loop();
-      });
-    }
-
-    void add_timer(std::chrono::milliseconds timeout, std::function<void()> callback){
-      int cnt = (timeout + tick - std::chrono::milliseconds(1)) / tick;
-        cnt = (std::max)(1, cnt);
-
-      if(cnt >= slot_num)
-        throw std::runtime_error("timeout too long");
-
-      {
-        std::lock_guard<std::mutex> lock(mtx);
-        wheel[(cur_slot + cnt) % slot_num ].push_back(callback);
-      }
-    }
-
-   
-    void add_always_timer(std::chrono::milliseconds timeout, std::function<void()> callback){
-
-      int cnt = (timeout + tick - std::chrono::milliseconds(1)) / tick;
-        cnt = (std::max)(1, cnt);
-
-      if(cnt >= slot_num)
-        throw std::runtime_error("timeout too long");
-
-      auto pack = [callback, this, timeout](){
-        callback();
-        add_always_timer(timeout, callback);
-      };
-      {
-        std::lock_guard<std::mutex> lock(mtx);
-        wheel[(cur_slot + cnt) % slot_num ].push_back(pack);
-      }
+    void start();
 
 
-    }
+    /*
+      功能：向定时器中添加一个定时任务
+      参数：
+        timeout: 定时器时间
+        callback: 定时器到期时调用的函数
+    */
+    void add_timer(std::chrono::milliseconds timeout, std::function<void()> callback);
 
-
+    /*
+      功能：对add_timer的封装，向定时器添加一个重复执行的定时任务
+      参数：
+        timeout: 定时器时间
+        callback: 定时器到期时调用的函数
+    */
+    void add_always_timer(std::chrono::milliseconds timeout, std::function<void()> callback);
 
   private:
 
@@ -109,39 +57,11 @@ namespace download {
     std::condition_variable cv;
 
     std::vector<std::list<std::function<void()>>> wheel;
-    std::list<std::function<void()>> doing;
+    std::list<std::function<void()>> due_callbacks;
 
-    void run_task(){ 
-      for(auto &c : doing){
-        c();
-      }
-      doing.clear();
-    }
+    void run_task();
     
-    void timer_loop(){ 
-      
-      while(1){ 
-      
-        {
-          std::unique_lock<std::mutex> lk(mtx);
-          cv.wait_for(lk, tick, [this](){ return stop_flag; });
-          if(stop_flag) break;
-          swap(wheel[cur_slot], doing);
-        }
-
-        run_task();
-        {
-          std::unique_lock<std::mutex> lk(mtx);
-          ++ cur_slot %= slot_num;
-        }
-        
-      }
-
-
-    }
-
-
-
+    void timer_loop();
 
   };  //class
 

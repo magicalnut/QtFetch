@@ -14,6 +14,7 @@ set(CMAKE_CXX_STANDARD 20)
 #  主程序里想一起编测试就显式打开：
 #    cmake -S . -B build -DDOWNLOAD_TOOL_BUILD_TESTS=ON
 # ---------------------------------------------------------------------------
+#
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(_download_tests_default ON)
 else()
@@ -33,7 +34,14 @@ if(WIN32)
   target_link_libraries(download_class PUBLIC ws2_32)
 endif()
 
+find_package(OpenSSL REQUIRED)
+target_link_libraries(download_class PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+
+#这下面是CTest
 if(DOWNLOAD_TOOL_BUILD_TESTS)
+
+  include (CTest)
+
   add_executable(test_find_servet ./test/find_socket_test.cpp)
   target_link_libraries(test_find_servet download_class)
 
@@ -45,4 +53,23 @@ if(DOWNLOAD_TOOL_BUILD_TESTS)
 
   add_executable(test_timer_wheel ./test/timer_wheel_test.cpp)
   target_link_libraries(test_timer_wheel download_class)
+
+  add_executable(find_socket_test ./test/find_socket_test.cpp)
+  target_link_libraries(find_socket_test download_class)
+
+  add_executable(test_tls ./test/tls_test.cpp)
+  target_link_libraries(test_tls download_class)
+
+  #在这加一个可执行文件，并连接download_class库
+  
+
+  #在这写上添加的可执行文件名字
+  set(test_name test_find_servet test_client test_thread test_timer_wheel find_socket_test)
+
+  foreach(t IN LISTS test_name)
+    add_test(NAME ${t} COMMAND ${t})
+  endforeach(t)
+  
+  
+
 endif()

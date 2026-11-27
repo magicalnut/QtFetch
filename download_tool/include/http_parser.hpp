@@ -5,44 +5,55 @@
 
 namespace download {
 
-  struct HttpResponse {
-    int status_code;
-    std::unordered_map<std::string, std::string> headers;
-    // std::string body;
-  };
+  /*
+    功能：
+      HTTP 响应解析器。构造时传入原始响应文本并立即完成解析，
+      内部响应结构不对外暴露，只提供查询接口
+  */
+  class HttpParser {
+  public:
 
-  HttpResponse parse_http(std::string s){
-    HttpResponse ret;
+    HttpParser(const HttpParser&) = delete;
+    HttpParser& operator=(const HttpParser&) = delete;
 
-    auto cut = [](const std::string& s) -> std::string {
-      int start = s.find_first_not_of(" \t\r\n");
-      int end = s.size();
-      while(end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\r' || s[end-1] == '\n')){
-        end--;
-      }
-      return s.substr(start, end-start);
+    /*
+      参数：
+        raw_response: 原始 HTTP 响应文本
+    */
+    HttpParser(const std::string& raw_response);
+
+    /*
+      功能：
+        读取 header 值
+      参数：
+        key: header 名
+      返回值：
+        对应的值；不存在时返回空字符串
+    */
+    std::string get(const std::string& key) const;
+
+    int status_code() const;
+
+    std::string reason() const;
+
+    std::string version() const;
+
+  private:
+
+    /*
+      功能：
+        解析 HTTP 响应文本（构造时调用）
+    */
+    void parse(const std::string& s);
+
+    struct HttpResponse {
+      std::string version;
+      int status_code = 0;
+      std::string reason;
+      std::unordered_map<std::string, std::string> headers;
     };
 
-    int p1 = s.find(' ');
-    int p2 = s.find(' ', p1+1);
-
-    ret.status_code = std::stoi(cut(s.substr(p1+1, p2-p1-1)));
-
-    int ed = s.find("\r\n");
-    while(true){ 
-      ed += 2;
-      int p = s.find(':', ed);
-      if(p == std::string::npos)  break;
-
-      std::string fi = cut(s.substr(ed, p-ed));
-      ed = s.find("\r\n", ed);
-      std::string se = cut(s.substr(p+1, ed-p));
-      
-      ret.headers[fi] = se;
-    }
-
-    return ret;
-  }
-
+    HttpResponse response_;
+  };
 
 } // namespace download
